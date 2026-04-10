@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <title>Intimo · Facturación</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación">
+      <div class="sidebar__brand">
+        <div class="sidebar__logo-frame">
+          <img
+            class="sidebar__logo-img"
+            src="/intimo-logo.png"
+            width="200"
+            alt="Íntimo · Cafetería de especialidad"
+            decoding="async"
+          />
+        </div>
+        <p class="sidebar__app-label">CFDI · Consumo de alimentos</p>
+      </div>
+      <nav class="sidebar__nav">
+        <a class="sidebar__link sidebar__link--active" href="/">
+          <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+          Órdenes facturables
+        </a>
+        <a class="sidebar__link" href="/health" target="_blank" rel="noopener">
+          <span class="material-symbols-outlined" aria-hidden="true">monitor_heart</span>
+          Estado del servicio
+        </a>
+        <a class="sidebar__link" href="/cliente.html" target="_blank" rel="noopener">
+          <span class="material-symbols-outlined" aria-hidden="true">qr_code_2</span>
+          Vista cliente (QR / ticket)
+        </a>
+      </nav>
+      <p class="sidebar__foot">Ingreso · IVA 16 % · clave 90101500</p>
+    </aside>
+
+    <main class="main">
+      <header class="main__header">
+        <h1 class="main__h1">Órdenes facturables</h1>
+        <p class="main__lead">
+          Busca por número de orden, mesa o descripción. Al timbrar, el total se factura en un solo concepto
+          <strong>Consumo de alimentos</strong> (clave SAT 90101500, unidad E48), IVA 16 %, moneda MXN — igual que una
+          operación de cafetería típica.
+        </p>
+      </header>
+
+      <section class="panel" aria-labelledby="search-label">
+        <div class="search-row">
+          <label id="search-label" class="visually-hidden" for="search-input">Buscar órdenes</label>
+          <div class="search-field">
+            <span class="material-symbols-outlined search-field__icon" aria-hidden="true">search</span>
+            <input
+              id="search-input"
+              class="search-field__input"
+              type="search"
+              placeholder="Buscar…"
+              autocomplete="off"
+              enterkeyhint="search"
+            />
+          </div>
+          <div class="filters" role="group" aria-label="Filtrar por estado">
+            <button type="button" class="chip chip--selected" data-status="all">Todas</button>
+            <button type="button" class="chip" data-status="pending_invoice">Pendiente factura</button>
+            <button type="button" class="chip" data-status="invoiced">Facturada</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Orden</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Descripción</th>
+                <th class="data-table__col-action">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="orders-body">
+              <tr>
+                <td colspan="6" class="data-table__empty">Cargando…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="panel__meta" id="result-meta"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="invoices-issued-title">
+        <h2 id="invoices-issued-title" class="panel__h2">Facturas emitidas</h2>
+        <p class="main__lead main__lead--tight">Registro local después de timbrar (Facturama o simulación). Descarga XML/PDF solo para CFDI reales en sandbox/producción.</p>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Orden</th>
+                <th>RFC</th>
+                <th>UUID / ref.</th>
+                <th>Origen</th>
+                <th class="data-table__col-action">Descarga</th>
+              </tr>
+            </thead>
+            <tbody id="invoices-body">
+              <tr>
+                <td colspan="6" class="data-table__empty">Cargando…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="panel__meta" id="invoices-meta"></p>
+      </section>
+
+      <section id="invoice-panel" class="panel invoice-panel is-hidden" aria-labelledby="invoice-title">
+        <div class="invoice-panel__head">
+          <div>
+            <h2 id="invoice-title" class="invoice-panel__title">Facturar orden</h2>
+            <p id="invoice-order-summary" class="invoice-panel__summary"></p>
+            <p class="invoice-cfdi-hint">
+              El comprobante se emite como <strong>Ingreso</strong>, con un renglón
+              <strong>Consumo de alimentos</strong> (90101500 · Unidad de servicio · E48), IVA trasladado 16 % y forma de
+              pago acorde a operación (p. ej. tarjeta de débito en servidor). Elige el uso CFDI y datos del receptor según
+              constancia; para tickets como el de referencia suele usarse <strong>G03 · Gastos en general</strong>.
+            </p>
+          </div>
+          <button type="button" class="btn btn--text" id="invoice-close" aria-label="Cerrar panel de facturación">
+            Cerrar
+          </button>
+        </div>
+
+        <div id="invoice-alert" class="alert is-hidden" role="status"></div>
+        <div id="invoice-download-row" class="invoice-download-row is-hidden" aria-label="Descargas CFDI">
+          <a class="btn btn--secondary btn--sm" id="invoice-dl-xml" href="#">XML</a>
+          <a class="btn btn--secondary btn--sm" id="invoice-dl-pdf" href="#">PDF</a>
+        </div>
+
+        <div class="invoice-step">
+          <p class="field-label">RFC del receptor</p>
+          <p class="field-hint">Validamos si ya tenemos datos guardados para agilizar el timbrado.</p>
+          <div class="invoice-rfc-row">
+            <input
+              id="invoice-rfc"
+              class="text-input invoice-rfc-row__input"
+              type="text"
+              autocomplete="off"
+              maxlength="13"
+              placeholder="ej. XAXX010101000"
+            />
+            <button type="button" class="btn btn--primary" id="invoice-validate-rfc">Validar RFC</button>
+          </div>
+        </div>
+
+        <div id="invoice-precargado" class="precargado-banner is-hidden">
+          <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+          <div>
+            <strong>Datos precargados</strong>
+            <span class="precargado-banner__sub">Este RFC ya estaba en el directorio. Revisa y genera la factura o edita los campos.</span>
+          </div>
+        </div>
+
+        <form id="receiver-form" class="receiver-form is-hidden">
+          <div class="form-grid">
+            <label class="form-field form-field--full">
+              <span class="field-label">Razón social o nombre</span>
+              <p class="field-hint field-hint--tight">
+                Debe coincidir con el nombre fiscal registrado ante el SAT para este RFC (como en tu constancia).
+              </p>
+              <input id="receiver-legal-name" class="text-input" type="text" required autocomplete="organization" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Régimen fiscal</span>
+              <p class="field-hint field-hint--tight">
+                Persona física con actividad empresarial (factura de referencia): <strong>612</strong>.
+              </p>
+              <select id="receiver-tax-regime" class="text-input select-input" required>
+                <option value="">Selecciona…</option>
+                <option value="612">612 — Personas Físicas con Actividades Empresariales y Profesionales</option>
+                <option value="601">601 — General de Ley Personas Morales</option>
+                <option value="603">603 — Personas Morales con fines no lucrativos</option>
+                <option value="605">605 — Sueldos y salarios</option>
+                <option value="606">606 — Arrendamiento</option>
+                <option value="616">616 — Sin obligaciones fiscales</option>
+                <option value="621">621 — Incorporación Fiscal</option>
+                <option value="625">625 — Régimen de Actividades Agrícolas</option>
+                <option value="626">626 — RESICO</option>
+              </select>
+            </label>
+            <p class="form-section-label form-field form-field--full">Domicilio fiscal del receptor</p>
+            <label class="form-field form-field--full">
+              <span class="field-label">Calle</span>
+              <input id="receiver-street" class="text-input" type="text" maxlength="100" required autocomplete="street-address" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Núm. exterior</span>
+              <input id="receiver-exterior-number" class="text-input" type="text" maxlength="30" required />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Núm. interior</span>
+              <span class="field-optional">(opcional)</span>
+              <input id="receiver-interior-number" class="text-input" type="text" maxlength="30" autocomplete="off" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Código postal</span>
+              <p class="field-hint field-hint--tight" id="receiver-postal-hint"></p>
+              <input id="receiver-zip" class="text-input" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" required autocomplete="postal-code" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Estado</span>
+              <input id="receiver-state" class="text-input" type="text" maxlength="100" required autocomplete="address-level1" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Municipio o alcaldía</span>
+              <input id="receiver-municipality" class="text-input" type="text" maxlength="100" required />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Colonia</span>
+              <select id="receiver-neighborhood" class="text-input select-input" required>
+                <option value="">— Primero el código postal —</option>
+              </select>
+              <input id="receiver-neighborhood-custom" class="text-input is-hidden" type="text" maxlength="80" placeholder="Escribe la colonia" autocomplete="off" />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Localidad o ciudad</span>
+              <span class="field-optional">(opcional)</span>
+              <input id="receiver-locality" class="text-input" type="text" maxlength="80" autocomplete="address-level2" />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">País</span>
+              <input id="receiver-country" class="text-input" type="text" maxlength="50" value="México" required autocomplete="country-name" />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Uso CFDI</span>
+              <p class="field-hint field-hint--tight">
+                En la factura modelo: «Gastos en general» → <strong>G03</strong>. Cambia solo si el receptor lo requiere.
+              </p>
+              <select id="receiver-cfdi-use" class="text-input select-input" required>
+                <option value="">Selecciona…</option>
+                <option value="G03">G03 — Gastos en general (recomendado · consumo en cafetería)</option>
+                <option value="G01">G01 — Adquisición de mercancías</option>
+                <option value="G02">G02 — Devoluciones, descuentos o bonificaciones</option>
+                <option value="I01">I01 — Construcciones</option>
+                <option value="S01">S01 — Sin efectos fiscales</option>
+              </select>
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Correo electrónico <span class="field-optional">(opcional)</span></span>
+              <input id="receiver-email" class="text-input" type="email" autocomplete="email" />
+            </label>
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" id="receiver-save-client" checked />
+            <span>Guardar datos del receptor para próximas facturas</span>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn--primary" id="invoice-submit">
+              <span class="material-symbols-outlined btn__icon" aria-hidden="true">receipt</span>
+              Generar factura
+            </button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+node_modules/
+.env
+data/
+dist/
+*.log
+.DS_Store
+# Base64 local de CSD (no versionar)
+.csd-base64-local-only.txt

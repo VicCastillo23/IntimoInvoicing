@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <title>Íntimo · Solicitar factura</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+</head>
+<body class="client-view">
+  <header class="client-header">
+    <img class="client-header__logo" src="/intimo-logo.png" width="160" alt="Íntimo" decoding="async" />
+    <h1 class="client-header__title">Solicita tu factura</h1>
+    <p class="client-header__lead">
+      Ingresa el número de orden que aparece en tu ticket o escanea el código QR del mismo.
+    </p>
+  </header>
+
+  <main class="client-main">
+    <div id="client-alert" class="alert is-hidden" role="status"></div>
+
+    <section id="client-lookup" class="panel client-panel" aria-labelledby="lookup-title">
+      <h2 id="lookup-title" class="client-panel__h2">Buscar consumo</h2>
+      <label class="form-field form-field--full">
+        <span class="field-label">Número de orden</span>
+        <p class="field-hint field-hint--tight">El número impreso en tu ticket (ej. 1042).</p>
+        <input
+          id="client-order-number-input"
+          class="text-input"
+          type="text"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="ej. 1042"
+        />
+      </label>
+      <div class="form-actions">
+        <button type="button" class="btn btn--primary" id="client-lookup-btn">
+          Continuar
+        </button>
+      </div>
+    </section>
+
+    <section id="client-flow" class="is-hidden">
+      <div id="client-order-card" class="panel client-panel client-order-card"></div>
+
+      <div id="client-invoiced-only" class="panel client-panel client-invoiced-msg is-hidden" role="status"></div>
+
+      <div id="client-invoice-box" class="panel client-panel is-hidden">
+        <h2 class="client-panel__h2">Datos fiscales</h2>
+        <p class="invoice-cfdi-hint client-invoice-hint">
+          Factura por <strong>Consumo de alimentos</strong> (clave 90101500), IVA 16 %. Uso CFDI habitual: <strong>G03</strong>.
+        </p>
+
+        <div id="client-download-row" class="invoice-download-row is-hidden" aria-label="Descargas CFDI">
+          <a class="btn btn--secondary btn--sm" id="client-dl-xml" href="#">XML</a>
+          <a class="btn btn--secondary btn--sm" id="client-dl-pdf" href="#">PDF</a>
+        </div>
+
+        <div class="invoice-step">
+          <p class="field-label">RFC</p>
+          <p class="field-hint">Te validamos si ya facturaste antes con nosotros.</p>
+          <div class="invoice-rfc-row">
+            <input id="client-invoice-rfc" class="text-input invoice-rfc-row__input" type="text" maxlength="13" autocomplete="off" placeholder="RFC" />
+            <button type="button" class="btn btn--primary" id="client-validate-rfc">Validar RFC</button>
+          </div>
+        </div>
+
+        <div id="client-precargado" class="precargado-banner is-hidden">
+          <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+          <div>
+            <strong>Datos encontrados</strong>
+            <span class="precargado-banner__sub">Revisa y confirma antes de generar la factura.</span>
+          </div>
+        </div>
+
+        <form id="client-receiver-form" class="receiver-form is-hidden">
+          <div class="form-grid">
+            <label class="form-field form-field--full">
+              <span class="field-label">Razón social o nombre</span>
+              <input id="client-legal-name" class="text-input" type="text" required autocomplete="organization" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Régimen fiscal</span>
+              <select id="client-tax-regime" class="text-input select-input" required>
+                <option value="">Selecciona…</option>
+                <option value="612">612 — Personas Físicas con Actividades Empresariales y Profesionales</option>
+                <option value="601">601 — General de Ley Personas Morales</option>
+                <option value="603">603 — Personas Morales con fines no lucrativos</option>
+                <option value="605">605 — Sueldos y salarios</option>
+                <option value="606">606 — Arrendamiento</option>
+                <option value="616">616 — Sin obligaciones fiscales</option>
+                <option value="621">621 — Incorporación Fiscal</option>
+                <option value="625">625 — Régimen de Actividades Agrícolas</option>
+                <option value="626">626 — RESICO</option>
+              </select>
+            </label>
+            <p class="form-section-label form-field form-field--full">Domicilio fiscal</p>
+            <label class="form-field form-field--full">
+              <span class="field-label">Calle</span>
+              <input id="client-street" class="text-input" type="text" maxlength="100" required autocomplete="street-address" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Núm. exterior</span>
+              <input id="client-exterior-number" class="text-input" type="text" maxlength="30" required />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Núm. interior</span>
+              <span class="field-optional">(opcional)</span>
+              <input id="client-interior-number" class="text-input" type="text" maxlength="30" autocomplete="off" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Código postal</span>
+              <p class="field-hint field-hint--tight" id="client-postal-hint"></p>
+              <input id="client-zip" class="text-input" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{5}" required autocomplete="postal-code" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Estado</span>
+              <input id="client-state" class="text-input" type="text" maxlength="100" required autocomplete="address-level1" />
+            </label>
+            <label class="form-field">
+              <span class="field-label">Municipio o alcaldía</span>
+              <input id="client-municipality" class="text-input" type="text" maxlength="100" required />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Colonia</span>
+              <select id="client-neighborhood" class="text-input select-input" required>
+                <option value="">— Primero el código postal —</option>
+              </select>
+              <input id="client-neighborhood-custom" class="text-input is-hidden" type="text" maxlength="80" placeholder="Escribe la colonia" autocomplete="off" />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Localidad o ciudad</span>
+              <span class="field-optional">(opcional)</span>
+              <input id="client-locality" class="text-input" type="text" maxlength="80" />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">País</span>
+              <input id="client-country" class="text-input" type="text" maxlength="50" value="México" required autocomplete="country-name" />
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Uso CFDI</span>
+              <select id="client-cfdi-use" class="text-input select-input" required>
+                <option value="">Selecciona…</option>
+                <option value="G03">G03 — Gastos en general</option>
+                <option value="G01">G01 — Adquisición de mercancías</option>
+                <option value="G02">G02 — Devoluciones, descuentos o bonificaciones</option>
+                <option value="I01">I01 — Construcciones</option>
+                <option value="S01">S01 — Sin efectos fiscales</option>
+              </select>
+            </label>
+            <label class="form-field form-field--full">
+              <span class="field-label">Correo electrónico <span class="field-optional">(opcional)</span></span>
+              <input id="client-email" class="text-input" type="email" autocomplete="email" />
+            </label>
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" id="client-save-client" />
+            <span>Recordar mis datos para la próxima vez en este dispositivo</span>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn--primary" id="client-submit">
+              <span class="material-symbols-outlined btn__icon" aria-hidden="true">receipt</span>
+              Generar factura
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <p class="client-restart-wrap is-hidden" id="client-restart-wrap">
+        <button type="button" class="btn btn--text" id="client-restart-btn">Facturar otra orden</button>
+      </p>
+    </section>
+  </main>
+
+  <footer class="client-footer">
+    <p class="client-footer__note">Íntimo Café · CFDI 4.0</p>
+  </footer>
+
+  <script type="module" src="/js/client-app.js"></script>
+</body>
+</html>
