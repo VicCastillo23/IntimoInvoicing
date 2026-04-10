@@ -1,0 +1,32 @@
+# systemd — copiar a /etc/systemd/system/intimo-invoicing.service
+# Ajusta User/Group y rutas si tu usuario no es ubuntu o el código no está en /opt/intimo/IntimoInvoicing
+#
+# Si Node no está en /usr/bin/node (p. ej. usas nvm), ejecuta: which node
+# y sustituye la ruta en ExecStart.
+#
+# sudo cp intimo-invoicing.service /etc/systemd/system/
+# sudo systemctl daemon-reload
+# sudo systemctl enable --now intimo-invoicing
+# sudo systemctl status intimo-invoicing
+
+[Unit]
+Description=Intimo Invoicing (Node.js Express)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/intimo/IntimoInvoicing
+Environment=NODE_ENV=production
+# Carga variables desde .env (PORT, FACTURAMA_*, SMTP_*, PUBLIC_BASE_URL, etc.)
+EnvironmentFile=-/opt/intimo/IntimoInvoicing/.env
+ExecStart=/usr/bin/node /opt/intimo/IntimoInvoicing/src/index.js
+Restart=on-failure
+RestartSec=5
+
+# Límites razonables para una t3.small
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

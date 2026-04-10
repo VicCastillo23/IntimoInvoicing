@@ -1,0 +1,27 @@
+IntimoInvoicing en la EC2 (sin PM2)
+===================================
+
+Requisitos: Node 20+, `npm install --omit=dev` hecho en el proyecto, archivo `.env` en
+`/opt/intimo/IntimoInvoicing/.env` con al menos PORT=3000 y PUBLIC_BASE_URL=https://facturacion.cafeintimo.mx
+
+1) Comprobar Node (si falla el servicio, usa la ruta que devuelve `which node` en ExecStart):
+
+   which node
+   # típico con apt: /usr/bin/node
+
+2) Instalar el unit systemd:
+
+   sudo cp /opt/intimo/IntimoInvoicing/deploy/intimo-invoicing.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now intimo-invoicing
+
+3) Ver estado y logs si no arranca:
+
+   sudo systemctl status intimo-invoicing
+   sudo journalctl -u intimo-invoicing -n 50 --no-pager
+
+4) Probar backend local:
+
+   curl -sS http://127.0.0.1:3000/health
+
+5) Recargar el sitio en el navegador (Nginx ya hace proxy a :3000).
