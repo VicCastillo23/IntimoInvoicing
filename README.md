@@ -72,7 +72,7 @@ Si el CSD **ya estaba** cargado, el script lo indica y termina bien (no es fallo
 Guía paso a paso en la consola y por SSH: **[docs/AWS_EC2_SERVIDOR.md](docs/AWS_EC2_SERVIDOR.md)**  
 (EC2, security groups, RDS, Node 20, PM2, Nginx opcional, Elastic IP.)
 
-En la **misma EC2** que el API de Loyalty (Ktor) y Nginx: **[docs/EC2_LOYALTY_Y_INVOICING.md](docs/EC2_LOYALTY_Y_INVOICING.md)**.
+En la **misma EC2** que el API de Loyalty (Ktor) y Nginx: **[docs/EC2_LOYALTY_Y_INVOICING.md](docs/EC2_LOYALTY_Y_INVOICING.md)**. Scripts Nginx/Certbot: carpeta **`deploy/`**.
 
 ---
 
