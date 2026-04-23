@@ -9,6 +9,7 @@ import { upsertClient } from "../repositories/clientRepository.js";
 import {
   appendInvoice,
   getInvoiceByUuid,
+  getInvoicedBillableOrderIdSet,
   listInvoices,
 } from "../repositories/invoiceRepository.js";
 import { getBillableOrderById, markOrderInvoiced } from "../mockBillableOrders.js";
@@ -17,7 +18,10 @@ import {
   mergeInvoiceStatusIntoOrders,
   usesBillableOrdersDatabase,
 } from "../repositories/billableOrdersRepository.js";
-import { getInvoicedBillableOrderIdSet } from "../repositories/invoiceRepository.js";
+import {
+  persistCfdiArtifacts,
+  readStoredArtifact,
+} from "../persistence/invoiceArtifactFiles.js";
 import { buildCfdi4MultiemisorPayload } from "../services/cfdiPayloadBuilder.js";
 import { downloadCfdiIssued } from "../services/facturamaDownload.js";
 import { sendInvoiceCfdiEmail } from "../services/invoiceEmail.js";
@@ -49,7 +53,7 @@ invoicesRouter.get("/invoices", (_req, res) => {
 
 /**
  * GET /api/invoices/:uuid/download?format=xml|pdf
- * Solo CFDI timbrados en Facturama (id guardado al emitir).
+ * Prioridad: archivos guardados en disco (`data/cfdi-files/…`); si no, Facturama issuedLite.
  */
 invoicesRouter.get("/invoices/:uuid/download", async (req, res) => {
   const key = req.params.uuid;
@@ -58,24 +62,53 @@ invoicesRouter.get("/invoices/:uuid/download", async (req, res) => {
     return res.status(400).json({ ok: false, error: "invalid_format" });
   }
 
-  if (!isFacturamaAuthConfigured()) {
-    return res.status(503).json({
-      ok: false,
-      error: "facturama_not_configured",
-      message: "Credenciales Facturama no configuradas.",
-    });
-  }
-
   const inv = getInvoiceByUuid(key);
   if (!inv) {
     return res.status(404).json({ ok: false, error: "invoice_not_found" });
   }
+
+  const storedPath =
+    format === "pdf" ? inv.storedPdfPath : inv.storedXmlPath;
+  if (storedPath) {
+    try {
+      const buffer = await readStoredArtifact(storedPath);
+      if (buffer && buffer.length > 0) {
+        const contentType =
+          format === "pdf" ? "application/pdf" : "application/xml";
+        const ext = format === "pdf" ? "pdf" : "xml";
+        const folio =
+          inv.folio != null && inv.folio !== ""
+            ? String(inv.folio)
+            : "cfdi";
+        const short = String(inv.uuid || key).replace(/-/g, "").slice(0, 8);
+        const filename = `cfdi-${folio}-${short}.${ext}`;
+        res.setHeader("Content-Type", contentType);
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${filename}"`
+        );
+        return res.send(buffer);
+      }
+    } catch (e) {
+      console.error("readStoredArtifact", e);
+    }
+  }
+
+  if (!isFacturamaAuthConfigured()) {
+    return res.status(503).json({
+      ok: false,
+      error: "facturama_not_configured",
+      message:
+        "No hay copia local del archivo y Facturama no está configurado para descargarlo.",
+    });
+  }
+
   if (inv.stampSource !== "facturama" || !inv.facturamaId) {
     return res.status(404).json({
       ok: false,
       error: "download_not_available",
       message:
-        "Solo CFDI timbrados en Facturama tienen XML/PDF descargable aquí.",
+        "No se encontró archivo guardado ni id Facturama para este CFDI.",
     });
   }
 
@@ -264,6 +297,36 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
       ? facturamaRaw.Complement.TaxStamp.Uuid
       : null);
 
+  /** @type {Buffer | null} */
+  let cfdiPdfBuffer = null;
+  /** @type {Buffer | null} */
+  let cfdiXmlBuffer = null;
+  /** @type {{ storedPdfPath: string, storedXmlPath: string } | null} */
+  let storedArtifacts = null;
+
+  if (stampSource === "facturama" && facturamaRaw?.Id) {
+    try {
+      const [pdfR, xmlR] = await Promise.all([
+        downloadCfdiIssued("pdf", facturamaRaw.Id),
+        downloadCfdiIssued("xml", facturamaRaw.Id),
+      ]);
+      cfdiPdfBuffer = pdfR.buffer;
+      cfdiXmlBuffer = xmlR.buffer;
+      storedArtifacts = await persistCfdiArtifacts({
+        uuid: uuidStored,
+        pdfBuffer: cfdiPdfBuffer,
+        xmlBuffer: cfdiXmlBuffer,
+      });
+      if (!storedArtifacts) {
+        console.warn(
+          "[invoicing] No se persistieron PDF/XML en disco (revisa permisos o buffers)."
+        );
+      }
+    } catch (e) {
+      console.error("cfdi download/persist after stamp", e);
+    }
+  }
+
   const emailDelivery = {
     sent: false,
     skipped: true,
@@ -280,25 +343,25 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
       emailDelivery.reason = "smtp_not_configured";
     } else {
       emailDelivery.skipped = false;
-      try {
-        const [pdfR, xmlR] = await Promise.all([
-          downloadCfdiIssued("pdf", facturamaRaw.Id),
-          downloadCfdiIssued("xml", facturamaRaw.Id),
-        ]);
-        await sendInvoiceCfdiEmail({
-          to: emailTo,
-          uuid: uuidStored || undefined,
-          folio: facturamaRaw?.Folio ?? stampMeta?.folio,
-          orderNumber: order.orderNumber,
-          total: order.total,
-          currency: order.currency,
-          pdfBuffer: pdfR.buffer,
-          xmlBuffer: xmlR.buffer,
-        });
-        emailDelivery.sent = true;
-      } catch (err) {
-        console.error("sendInvoiceCfdiEmail", err);
-        emailDelivery.error = err.message || String(err);
+      if (cfdiPdfBuffer && cfdiXmlBuffer) {
+        try {
+          await sendInvoiceCfdiEmail({
+            to: emailTo,
+            uuid: uuidStored || undefined,
+            folio: facturamaRaw?.Folio ?? stampMeta?.folio,
+            orderNumber: order.orderNumber,
+            total: order.total,
+            currency: order.currency,
+            pdfBuffer: cfdiPdfBuffer,
+            xmlBuffer: cfdiXmlBuffer,
+          });
+          emailDelivery.sent = true;
+        } catch (err) {
+          console.error("sendInvoiceCfdiEmail", err);
+          emailDelivery.error = err.message || String(err);
+        }
+      } else {
+        emailDelivery.reason = "cfdi_download_failed";
       }
     }
   } else if (stampSource === "mock") {
@@ -314,6 +377,8 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
       reference,
       serie: facturamaRaw?.Serie ?? stampMeta?.serie ?? null,
       folio: facturamaRaw?.Folio ?? stampMeta?.folio ?? null,
+      storedPdfPath: storedArtifacts?.storedPdfPath ?? null,
+      storedXmlPath: storedArtifacts?.storedXmlPath ?? null,
       order: {
         id: order.id,
         orderNumber: order.orderNumber,
@@ -343,7 +408,10 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
   }
 
   const downloadUrls =
-    stampSource === "facturama" && uuidStored && facturamaRaw?.Id
+    uuidStored &&
+    (storedArtifacts?.storedPdfPath ||
+      storedArtifacts?.storedXmlPath ||
+      (stampSource === "facturama" && facturamaRaw?.Id))
       ? {
           xml: `/api/invoices/${encodeURIComponent(uuidStored)}/download?format=xml`,
           pdf: `/api/invoices/${encodeURIComponent(uuidStored)}/download?format=pdf`,
@@ -357,6 +425,7 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
     message,
     persisted,
     email: emailDelivery,
+    storedArtifacts,
     downloadUrls,
     facturama: facturamaRaw
       ? {
