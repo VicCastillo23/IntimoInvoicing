@@ -29,6 +29,7 @@ import {
   extractStampMeta,
   stampCfdi4Multiemisor,
 } from "../services/facturamaStamp.js";
+import { syncInvoiceUrlsToPosPurchaseOrder } from "../services/syncInvoiceToPosOrder.js";
 import { validateReceiverPayload } from "../services/receiverValidation.js";
 
 export const invoicesRouter = Router();
@@ -405,6 +406,16 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
   } catch (err) {
     console.error("appendInvoice", err);
     persisted = false;
+  }
+
+  if (persisted && stampSource === "facturama" && uuidStored) {
+    const sync = await syncInvoiceUrlsToPosPurchaseOrder({
+      billableOrderId: order.id,
+      uuid: uuidStored,
+    });
+    if (!sync.ok && sync.reason && !["no_database", "not_pos_order_id"].includes(sync.reason)) {
+      console.warn("[invoicing] No se actualizaron enlaces en pos.purchase_orders:", sync);
+    }
   }
 
   const downloadUrls =
