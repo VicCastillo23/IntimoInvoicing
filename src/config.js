@@ -89,3 +89,12 @@ export function canStampWithFacturama() {
   const p = getEmisorCfdiProfile();
   return Boolean(p.rfc && p.name && /^\d{5}$/.test(p.expeditionPlace));
 }
+
+/**
+ * En producción (p. ej. EC2 / AWS): `1` para no timbrar en modo simulación.
+ * Si falta Facturama, POST /api/invoices/request responde 503.
+ */
+export function mustStampWithFacturama() {
+  const v = String(process.env.INTIMO_REQUIRE_FACTURAMA_STAMP || "").trim();
+  return v === "1" || /^true$/i.test(v) || /^yes$/i.test(v);
+}

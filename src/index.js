@@ -7,7 +7,10 @@ import {
   isCsdConfigured,
   isFacturamaAuthConfigured,
   isSmtpConfigured,
+  mustStampWithFacturama,
 } from "./config.js";
+import { checkDb } from "./db/pool.js";
+import { usesBillableOrdersDatabase } from "./repositories/billableOrdersRepository.js";
 import { initClientRepository } from "./repositories/clientRepository.js";
 import { initInvoiceRepository } from "./repositories/invoiceRepository.js";
 import { billableOrdersRouter } from "./routes/billableOrders.js";
@@ -25,15 +28,21 @@ await initInvoiceRepository();
 
 app.use(express.json());
 
-app.get("/health", (_req, res) => {
+app.get("/health", async (_req, res) => {
+  const db = await checkDb();
   res.json({
     ok: true,
     service: "intimo-invoicing",
     env: process.env.NODE_ENV || "development",
+    billableOrdersSource: usesBillableOrdersDatabase()
+      ? "postgresql"
+      : "mock",
+    database: db,
     facturamaApiUrl: process.env.FACTURAMA_API_URL || null,
     facturamaAuthConfigured: isFacturamaAuthConfigured(),
     csdConfigured: isCsdConfigured(),
     facturamaStampReady: canStampWithFacturama(),
+    requireFacturamaStamp: mustStampWithFacturama(),
     clientStore: "file",
     clientStoreNote:
       "Receptores en `data/clients.json` (modelo propio, independiente del PAC).",

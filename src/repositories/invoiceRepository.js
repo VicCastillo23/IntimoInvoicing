@@ -36,3 +36,15 @@ export function getInvoiceByUuid(uuidOrReference) {
     null
   );
 }
+
+/** Ids de ticket usados en UI (`pos-123` o legado mock `ord-…`) con CFDI guardado. */
+export function getInvoicedBillableOrderIdSet() {
+  /** @type {Set<string>} */
+  const ids = new Set();
+  for (const inv of cache) {
+    const oid = inv?.order?.id;
+    if (oid == null || String(oid).trim() === "") continue;
+    ids.add(String(oid).trim());
+  }
+  return ids;
+}

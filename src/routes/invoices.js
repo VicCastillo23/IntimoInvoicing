@@ -3,6 +3,7 @@ import {
   canStampWithFacturama,
   isFacturamaAuthConfigured,
   isSmtpConfigured,
+  mustStampWithFacturama,
 } from "../config.js";
 import { upsertClient } from "../repositories/clientRepository.js";
 import {
@@ -11,6 +12,12 @@ import {
   listInvoices,
 } from "../repositories/invoiceRepository.js";
 import { getBillableOrderById, markOrderInvoiced } from "../mockBillableOrders.js";
+import {
+  getBillableOrderByIdFromDb,
+  mergeInvoiceStatusIntoOrders,
+  usesBillableOrdersDatabase,
+} from "../repositories/billableOrdersRepository.js";
+import { getInvoicedBillableOrderIdSet } from "../repositories/invoiceRepository.js";
 import { buildCfdi4MultiemisorPayload } from "../services/cfdiPayloadBuilder.js";
 import { downloadCfdiIssued } from "../services/facturamaDownload.js";
 import { sendInvoiceCfdiEmail } from "../services/invoiceEmail.js";
@@ -21,6 +28,19 @@ import {
 import { validateReceiverPayload } from "../services/receiverValidation.js";
 
 export const invoicesRouter = Router();
+
+async function getBillableOrderForInvoice(orderId) {
+  if (usesBillableOrdersDatabase()) {
+    const raw = await getBillableOrderByIdFromDb(orderId);
+    if (!raw) return null;
+    const [merged] = mergeInvoiceStatusIntoOrders(
+      [raw],
+      getInvoicedBillableOrderIdSet()
+    );
+    return merged;
+  }
+  return getBillableOrderById(orderId);
+}
 
 /** GET /api/invoices — últimas facturas emitidas (registro local). */
 invoicesRouter.get("/invoices", (_req, res) => {
@@ -103,7 +123,7 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
     return res.status(400).json({ ok: false, error: "order_id_required" });
   }
 
-  const order = getBillableOrderById(orderId);
+  const order = await getBillableOrderForInvoice(orderId);
   if (!order) {
     return res.status(404).json({ ok: false, error: "order_not_found" });
   }
@@ -203,6 +223,15 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
   let facturamaRaw = null;
   let stampMeta = null;
 
+  if (!canStampWithFacturama() && mustStampWithFacturama()) {
+    return res.status(503).json({
+      ok: false,
+      error: "facturama_required",
+      message:
+        "Timbrado simulación desactivado (INTIMO_REQUIRE_FACTURAMA_STAMP=1). Configura FACTURAMA_USER, FACTURAMA_PASSWORD, FACTURAMA_EMISOR_RFC y lugar de expedición válido.",
+    });
+  }
+
   if (canStampWithFacturama()) {
     try {
       const cfdiBody = buildCfdi4MultiemisorPayload(order, receiverPayload);
@@ -225,7 +254,9 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
     }
   }
 
-  markOrderInvoiced(order.id);
+  if (!usesBillableOrdersDatabase()) {
+    markOrderInvoiced(order.id);
+  }
 
   const uuidStored =
     stampMeta?.uuid ||
