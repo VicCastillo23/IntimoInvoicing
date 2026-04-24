@@ -3,3 +3,8 @@ NODE_ENV=production
 PUBLIC_BASE_URL=https://facturacion.cafeintimo.mx
 # Tras migración 12 + app POS con QR por token: solo ?t= en vista cliente (no adivinar por número).
 INTIMO_PUBLIC_INVOICE_TOKEN_ONLY=1
+
+# Portal staff (misma DATABASE_URL que Accounting + migración 13_auth_app_users.sql).
+# SESSION_SECRET=<≥32 chars, npm run gen:session-secret>
+# DATABASE_URL=postgresql://...
+# TRUST_PROXY=1

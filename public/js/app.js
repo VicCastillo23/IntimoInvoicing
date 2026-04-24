@@ -4,6 +4,16 @@ import { createPostalCatalogUi } from "./postal-catalog-ui.js";
 
 const API_BASE = "";
 
+/** @param {RequestInfo} input @param {RequestInit} [init] */
+async function apiFetch(input, init = {}) {
+  const res = await fetch(input, { ...init, credentials: "include" });
+  if (res.status === 401) {
+    window.location.replace("/login.html");
+    throw new Error("Sesión requerida");
+  }
+  return res;
+}
+
 let debounceTimer;
 let currentStatus = "all";
 /** @type {Array<Record<string, unknown>>} */
@@ -47,6 +57,7 @@ const el = {
 
 const postalUi = createPostalCatalogUi({
   apiBase: API_BASE,
+  withCredentials: true,
   zipInput: el.receiverZip,
   stateInput: el.receiverState,
   municipalityInput: el.receiverMunicipality,
@@ -201,7 +212,7 @@ async function validateRfc() {
 
   try {
     const url = `${API_BASE}/api/clients/lookup?${new URLSearchParams({ rfc })}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const data = await res.json();
 
     if (res.status === 422 || !data.ok) {
@@ -285,7 +296,7 @@ async function submitInvoice(ev) {
   showInvoiceAlert(null, "");
 
   try {
-    const res = await fetch(`${API_BASE}/api/invoices/request`, {
+    const res = await apiFetch(`${API_BASE}/api/invoices/request`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -342,7 +353,7 @@ async function fetchOrders(q) {
   if (currentStatus !== "all") params.set("status", currentStatus);
 
   const url = `${API_BASE}/api/billable-orders?${params.toString()}`;
-  const res = await fetch(url);
+  const res = await apiFetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -392,7 +403,7 @@ function renderIssuedInvoices(invoices) {
 async function loadInvoices() {
   el.invoicesMeta.textContent = "Cargando…";
   try {
-    const res = await fetch(`${API_BASE}/api/invoices`);
+    const res = await apiFetch(`${API_BASE}/api/invoices`);
     const data = await res.json();
     const invoices = data.invoices || [];
     renderIssuedInvoices(invoices);
@@ -460,4 +471,29 @@ el.chips.forEach((chip) => {
   });
 });
 
-load();
+async function initShell() {
+  try {
+    const r = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
+    const j = await r.json();
+    if (!j.success || !j.user) {
+      window.location.replace("/login.html");
+      return;
+    }
+  } catch {
+    window.location.replace("/login.html");
+    return;
+  }
+
+  document.getElementById("btn-logout")?.addEventListener("click", async () => {
+    try {
+      await fetch(`${API_BASE}/api/auth/logout`, { method: "POST", credentials: "include" });
+    } catch {
+      /* */
+    }
+    window.location.replace("/login.html");
+  });
+
+  await load();
+}
+
+initShell();

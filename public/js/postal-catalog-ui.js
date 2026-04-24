@@ -12,6 +12,7 @@ const MANUAL = "__manual__";
  * @param {HTMLSelectElement} opts.neighborhoodSelect
  * @param {HTMLInputElement} opts.neighborhoodCustom
  * @param {HTMLElement | null} [opts.hintEl]
+ * @param {boolean} [opts.withCredentials] — sesión staff en portal facturación
  */
 export function createPostalCatalogUi(opts) {
   const {
@@ -22,6 +23,7 @@ export function createPostalCatalogUi(opts) {
     neighborhoodSelect,
     neighborhoodCustom,
     hintEl,
+    withCredentials = false,
   } = opts;
 
   /** @type {ReturnType<typeof setTimeout> | null} */
@@ -156,7 +158,8 @@ export function createPostalCatalogUi(opts) {
 
   async function fetchCatalog(zip) {
     const res = await fetch(
-      `${apiBase}/api/catalogs/postal-code/${encodeURIComponent(zip)}`
+      `${apiBase}/api/catalogs/postal-code/${encodeURIComponent(zip)}`,
+      withCredentials ? { credentials: "include" } : undefined
     );
     let data = {};
     try {
