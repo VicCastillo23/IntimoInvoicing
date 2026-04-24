@@ -5,6 +5,27 @@ import { getPool } from "../db/pool.js";
 
 const POS_SOURCES = ["intimo_pos", "intimo_pos_split"];
 
+/** UUID estándar (gen_random_uuid), minúsculas para consulta. */
+function normalizePublicInvoiceToken(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s)
+  ) {
+    return "";
+  }
+  return s;
+}
+
+function publicInvoiceClientUrlFromDbToken(dbToken) {
+  const t = normalizePublicInvoiceToken(dbToken);
+  if (!t) return "";
+  const base = String(process.env.PUBLIC_BASE_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+  if (!base) return "";
+  return `${base}/cliente.html?t=${encodeURIComponent(t)}`;
+}
+
 export function usesBillableOrdersDatabase() {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
@@ -41,6 +62,7 @@ export async function listBillableOrdersFromDb({
       po.occurred_at,
       po.currency,
       po.total,
+      COALESCE(NULLIF(BTRIM(po.public_invoice_token::text), ''), '') AS public_invoice_token,
       COALESCE(NULLIF(TRIM(po.raw_payload->>'orderNumber'), ''), '') AS order_number,
       COALESCE(NULLIF(TRIM(po.raw_payload->>'tableName'), ''), '—') AS table_name,
       (SELECT COUNT(*)::int FROM pos.purchase_lines pl WHERE pl.order_id = po.id) AS line_count
@@ -107,6 +129,7 @@ export async function getBillableOrderByIdFromDb(orderId) {
       po.occurred_at,
       po.currency,
       po.total,
+      COALESCE(NULLIF(BTRIM(po.public_invoice_token::text), ''), '') AS public_invoice_token,
       COALESCE(NULLIF(TRIM(po.raw_payload->>'orderNumber'), ''), '') AS order_number,
       COALESCE(NULLIF(TRIM(po.raw_payload->>'tableName'), ''), '—') AS table_name,
       (SELECT COUNT(*)::int FROM pos.purchase_lines pl WHERE pl.order_id = po.id) AS line_count
@@ -139,6 +162,7 @@ export async function getBillableOrderByOrderNumberFromDb(orderNumber) {
       po.occurred_at,
       po.currency,
       po.total,
+      COALESCE(NULLIF(BTRIM(po.public_invoice_token::text), ''), '') AS public_invoice_token,
       COALESCE(NULLIF(TRIM(po.raw_payload->>'orderNumber'), ''), '') AS order_number,
       COALESCE(NULLIF(TRIM(po.raw_payload->>'tableName'), ''), '—') AS table_name,
       (SELECT COUNT(*)::int FROM pos.purchase_lines pl WHERE pl.order_id = po.id) AS line_count
@@ -149,6 +173,41 @@ export async function getBillableOrderByOrderNumberFromDb(orderNumber) {
     LIMIT 1
   `;
   const { rows } = await pool.query(sql, [POS_SOURCES, num]);
+  if (!rows.length) return null;
+  return mapRowToBillableOrder(rows[0], null);
+}
+
+/**
+ * Búsqueda por token opaco (QR cliente). Ver migración `12_purchase_order_public_token.sql`.
+ * @param {string} token UUID en texto
+ */
+export async function getBillableOrderByPublicTokenFromDb(token) {
+  const pool = getPool();
+  if (!pool) {
+    const err = new Error("DATABASE_URL no configurada");
+    err.code = "NO_DATABASE";
+    throw err;
+  }
+  const normalized = normalizePublicInvoiceToken(token);
+  if (!normalized) return null;
+
+  const sql = `
+    SELECT
+      po.id,
+      po.external_id,
+      po.occurred_at,
+      po.currency,
+      po.total,
+      COALESCE(NULLIF(BTRIM(po.public_invoice_token::text), ''), '') AS public_invoice_token,
+      COALESCE(NULLIF(TRIM(po.raw_payload->>'orderNumber'), ''), '') AS order_number,
+      COALESCE(NULLIF(TRIM(po.raw_payload->>'tableName'), ''), '—') AS table_name,
+      (SELECT COUNT(*)::int FROM pos.purchase_lines pl WHERE pl.order_id = po.id) AS line_count
+    FROM pos.purchase_orders po
+    WHERE po.source = ANY($1::text[])
+      AND LOWER(BTRIM(po.public_invoice_token::text)) = $2
+    LIMIT 1
+  `;
+  const { rows } = await pool.query(sql, [POS_SOURCES, normalized]);
   if (!rows.length) return null;
   return mapRowToBillableOrder(rows[0], null);
 }
@@ -188,6 +247,7 @@ function mapRowToBillableOrder(r, invoicedNumeric) {
     status,
     tableName: String(r.table_name || "—"),
     description,
+    publicInvoiceUrl: publicInvoiceClientUrlFromDbToken(r.public_invoice_token),
   };
 }
 

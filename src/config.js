@@ -98,3 +98,12 @@ export function mustStampWithFacturama() {
   const v = String(process.env.INTIMO_REQUIRE_FACTURAMA_STAMP || "").trim();
   return v === "1" || /^true$/i.test(v) || /^yes$/i.test(v);
 }
+
+/**
+ * Si es true: GET /api/public/billable-order solo acepta ?t= / ?token= (UUID), no orderId ni orderNumber.
+ * Evita que alguien adivine órdenes por número secuencial; el QR debe usar el token de la migración 12.
+ */
+export function isPublicInvoiceTokenOnly() {
+  const v = String(process.env.INTIMO_PUBLIC_INVOICE_TOKEN_ONLY || "").trim();
+  return v === "1" || /^true$/i.test(v) || /^yes$/i.test(v);
+}

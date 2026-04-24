@@ -100,9 +100,16 @@ function renderRows(orders) {
   el.tbody.innerHTML = orders
     .map((o) => {
       const pending = o.status === "pending_invoice";
-      const action = pending
-        ? `<button type="button" class="btn btn--primary btn--sm" data-action="invoice" data-order-id="${escapeHtml(o.id)}">Facturar</button>`
-        : `<span class="meta-muted">—</span>`;
+      const clientLink = o.publicInvoiceUrl
+        ? `<a href="${escapeHtml(o.publicInvoiceUrl)}" class="btn btn--ghost btn--sm" target="_blank" rel="noopener noreferrer" title="Enlace seguro para el cliente (QR)">Cliente</a>`
+        : "";
+      const invoiceBtn = `<button type="button" class="btn btn--primary btn--sm" data-action="invoice" data-order-id="${escapeHtml(o.id)}">Facturar</button>`;
+      let action;
+      if (pending) {
+        action = clientLink ? `${clientLink} ${invoiceBtn}` : invoiceBtn;
+      } else {
+        action = clientLink || `<span class="meta-muted">—</span>`;
+      }
       return `
     <tr>
       <td class="meta-muted">${formatDate(o.date)}</td>

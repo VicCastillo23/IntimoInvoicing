@@ -6,6 +6,7 @@ import {
   canStampWithFacturama,
   isCsdConfigured,
   isFacturamaAuthConfigured,
+  isPublicInvoiceTokenOnly,
   isSmtpConfigured,
   mustStampWithFacturama,
 } from "./config.js";
@@ -43,6 +44,7 @@ app.get("/health", async (_req, res) => {
     csdConfigured: isCsdConfigured(),
     facturamaStampReady: canStampWithFacturama(),
     requireFacturamaStamp: mustStampWithFacturama(),
+    publicInvoiceTokenOnly: isPublicInvoiceTokenOnly(),
     clientStore: "file",
     clientStoreNote:
       "Receptores en `data/clients.json` (modelo propio, independiente del PAC).",

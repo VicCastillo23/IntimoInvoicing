@@ -1,3 +1,5 @@
 # Pegar o fusionar en el .env del servidor (IntimoInvoicing), junto al resto de variables reales.
 NODE_ENV=production
 PUBLIC_BASE_URL=https://facturacion.cafeintimo.mx
+# Tras migración 12 + app POS con QR por token: solo ?t= en vista cliente (no adivinar por número).
+INTIMO_PUBLIC_INVOICE_TOKEN_ONLY=1

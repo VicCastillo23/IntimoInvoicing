@@ -102,8 +102,11 @@ function resetInvoiceUi() {
 
 async function fetchPublicOrder(params) {
   const q = new URLSearchParams();
-  if (params.orderId) q.set("orderId", params.orderId);
-  if (params.orderNumber) q.set("orderNumber", params.orderNumber);
+  if (params.publicToken) q.set("token", params.publicToken);
+  else {
+    if (params.orderId) q.set("orderId", params.orderId);
+    if (params.orderNumber) q.set("orderNumber", params.orderNumber);
+  }
   const res = await fetch(`${API_BASE}/api/public/billable-order?${q}`);
   const data = await res.json();
   if (!res.ok || !data.ok) {
@@ -153,14 +156,24 @@ function showFlowWithOrder(order) {
 
 async function loadOrderFromQuery() {
   const p = new URLSearchParams(window.location.search);
+  const publicToken = (p.get("t") || p.get("token") || "").trim();
   const orderId = (p.get("orderId") || p.get("id") || "").trim();
-  const orderNumber = (p.get("orderNumber") || p.get("n") || "").trim();
+  const orderNumber = (
+    p.get("orderNumber") ||
+    p.get("n") ||
+    p.get("orden") ||
+    ""
+  ).trim();
 
-  if (!orderId && !orderNumber) return false;
+  if (!publicToken && !orderId && !orderNumber) return false;
 
   el.lookup.classList.add("is-hidden");
   try {
-    const order = await fetchPublicOrder({ orderId: orderId || undefined, orderNumber: orderNumber || undefined });
+    const order = await fetchPublicOrder({
+      publicToken: publicToken || undefined,
+      orderId: orderId || undefined,
+      orderNumber: orderNumber || undefined,
+    });
     showFlowWithOrder(order);
   } catch {
     el.lookup.classList.remove("is-hidden");
