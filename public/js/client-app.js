@@ -69,6 +69,36 @@ function formatMoney(amount, currency) {
   }).format(Number(amount));
 }
 
+function formatLineQty(q) {
+  const n = Number(q);
+  if (!Number.isFinite(n)) return "—";
+  if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));
+  return n.toFixed(2);
+}
+
+function renderOrderLinesHtml(order) {
+  const lines = Array.isArray(order.lineItems) ? order.lineItems : [];
+  if (!lines.length) return "";
+  const cur = order.currency || "MXN";
+  const body = lines
+    .map(
+      (it) => `<tr>
+        <td>${escapeHtml(it.description)}</td>
+        <td class="num">${escapeHtml(formatLineQty(it.qty))}</td>
+        <td class="num">${escapeHtml(formatMoney(it.unitPrice, cur))}</td>
+        <td class="num">${escapeHtml(formatMoney(it.lineTotal, cur))}</td>
+      </tr>`
+    )
+    .join("");
+  return `<div class="client-order-lines-wrap">
+    <p class="client-order-lines__title">Detalle del consumo</p>
+    <table class="client-order-lines" aria-label="Conceptos consumidos">
+      <thead><tr><th>Concepto</th><th class="num">Cant.</th><th class="num">P. unit.</th><th class="num">Importe</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
+
 function showAlert(type, message) {
   el.alert.textContent = message;
   el.alert.classList.remove("is-hidden", "alert--error", "alert--success");
@@ -123,6 +153,7 @@ function renderOrderCard(order) {
     <p class="client-order-card__title">Orden <strong>${escapeHtml(String(order.orderNumber))}</strong></p>
     <p class="client-order-card__meta">${escapeHtml(order.tableName || "")} · ${formatDate(order.date)}</p>
     <p class="client-order-card__amount">${formatMoney(order.total, order.currency)}</p>
+    ${renderOrderLinesHtml(order)}
     <p class="client-order-card__desc">${escapeHtml(order.description || "")}</p>
   `;
 }

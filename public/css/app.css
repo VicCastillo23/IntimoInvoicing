@@ -817,6 +817,46 @@ body.client-view {
   color: var(--intimo-gray-medium);
 }
 
+.client-order-lines-wrap {
+  margin: 0.75rem 0 0.5rem;
+}
+
+.client-order-lines__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--intimo-gray-muted);
+}
+
+.client-order-lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.client-order-lines th,
+.client-order-lines td {
+  padding: 0.45rem 0.35rem;
+  text-align: left;
+  border-bottom: 1px solid var(--intimo-outline);
+  vertical-align: top;
+}
+
+.client-order-lines th {
+  font-weight: 600;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  color: var(--intimo-gray-muted);
+}
+
+.client-order-lines td.num,
+.client-order-lines th.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .client-invoiced-msg__text {
   margin: 0;
   font-size: 0.9375rem;

@@ -43,6 +43,36 @@ export function usesBillableOrdersDatabase() {
 }
 
 /**
+ * Renglones del ticket en pos.purchase_lines (solo para detalle de una orden).
+ * @param {import("pg").Pool} pool
+ * @param {string | number} purchaseOrderId
+ * @returns {Promise<{ description: string, qty: number, unitPrice: number, lineTotal: number }[]>}
+ */
+async function fetchOrderLines(pool, purchaseOrderId) {
+  const oid = Number(purchaseOrderId);
+  if (!Number.isFinite(oid)) return [];
+  const { rows } = await pool.query(
+    `
+    SELECT line_no,
+           COALESCE(NULLIF(BTRIM(description), ''), '—') AS description,
+           qty::float8 AS qty,
+           unit_price::float8 AS unit_price,
+           line_total::float8 AS line_total
+    FROM pos.purchase_lines
+    WHERE order_id = $1
+    ORDER BY line_no ASC, id ASC
+    `,
+    [oid]
+  );
+  return rows.map((x) => ({
+    description: String(x.description || "").trim() || "—",
+    qty: Number(x.qty) || 0,
+    unitPrice: Number(x.unit_price) || 0,
+    lineTotal: Number(x.line_total) || 0,
+  }));
+}
+
+/**
  * @param {Set<string> | string[]} invoicedBillableIds ids tipo `pos-123` guardados en facturas locales
  */
 export async function listBillableOrdersFromDb({
@@ -111,7 +141,7 @@ export async function listBillableOrdersFromDb({
   const sql = parts.join("\n");
   const { rows } = await pool.query(sql, params);
   const invoicedSet = new Set(invoicedNumeric);
-  return rows.map((r) => mapRowToBillableOrder(r, invoicedSet));
+  return rows.map((r) => mapRowToBillableOrder(r, invoicedSet, []));
 }
 
 /**
@@ -151,7 +181,8 @@ export async function getBillableOrderByIdFromDb(orderId) {
   `;
   const { rows } = await pool.query(sql, [numericId, POS_SOURCES]);
   if (!rows.length) return null;
-  return mapRowToBillableOrder(rows[0], null);
+  const lineItems = await fetchOrderLines(pool, rows[0].id);
+  return mapRowToBillableOrder(rows[0], null, lineItems);
 }
 
 /**
@@ -186,7 +217,8 @@ export async function getBillableOrderByOrderNumberFromDb(orderNumber) {
   `;
   const { rows } = await pool.query(sql, [POS_SOURCES, num]);
   if (!rows.length) return null;
-  return mapRowToBillableOrder(rows[0], null);
+  const lineItems = await fetchOrderLines(pool, rows[0].id);
+  return mapRowToBillableOrder(rows[0], null, lineItems);
 }
 
 /**
@@ -221,14 +253,16 @@ export async function getBillableOrderByPublicTokenFromDb(token) {
   `;
   const { rows } = await pool.query(sql, [POS_SOURCES, normalized]);
   if (!rows.length) return null;
-  return mapRowToBillableOrder(rows[0], null);
+  const lineItems = await fetchOrderLines(pool, rows[0].id);
+  return mapRowToBillableOrder(rows[0], null, lineItems);
 }
 
 /**
  * @param {import("pg").QueryResultRow} r
  * @param {Set<number> | null} invoicedNumeric if null, status queda pending_invoice (fusionar después)
+ * @param {{ description: string, qty: number, unitPrice: number, lineTotal: number }[]} lineItems
  */
-function mapRowToBillableOrder(r, invoicedNumeric) {
+function mapRowToBillableOrder(r, invoicedNumeric, lineItems = []) {
   const id = `pos-${r.id}`;
   const orderNumber =
     r.order_number && String(r.order_number).trim() !== ""
@@ -259,6 +293,7 @@ function mapRowToBillableOrder(r, invoicedNumeric) {
     status,
     tableName: String(r.table_name || "—"),
     description,
+    lineItems,
     publicInvoiceUrl: publicInvoiceClientUrlFromDbToken(r.public_invoice_token),
   };
 }
