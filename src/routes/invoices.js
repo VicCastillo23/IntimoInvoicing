@@ -52,13 +52,20 @@ invoicesRouter.get("/invoices", (_req, res) => {
   res.json({ ok: true, invoices: listInvoices() });
 });
 
+function dispositionHeader(filename, inline) {
+  const mode = inline ? "inline" : "attachment";
+  return `${mode}; filename="${filename}"`;
+}
+
 /**
  * GET /api/invoices/:uuid/download?format=xml|pdf
+ * Query `inline=1`: Content-Disposition inline (ver en pestaña en lugar de forzar descarga).
  * Prioridad: archivos guardados en disco (`data/cfdi-files/…`); si no, Facturama issuedLite.
  */
 invoicesRouter.get("/invoices/:uuid/download", async (req, res) => {
   const key = req.params.uuid;
   const format = String(req.query.format || "xml").toLowerCase();
+  const inline = String(req.query.inline || "").trim() === "1";
   if (format !== "xml" && format !== "pdf") {
     return res.status(400).json({ ok: false, error: "invalid_format" });
   }
@@ -84,10 +91,7 @@ invoicesRouter.get("/invoices/:uuid/download", async (req, res) => {
         const short = String(inv.uuid || key).replace(/-/g, "").slice(0, 8);
         const filename = `cfdi-${folio}-${short}.${ext}`;
         res.setHeader("Content-Type", contentType);
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${filename}"`
-        );
+        res.setHeader("Content-Disposition", dispositionHeader(filename, inline));
         return res.send(buffer);
       }
     } catch (e) {
@@ -126,10 +130,7 @@ invoicesRouter.get("/invoices/:uuid/download", async (req, res) => {
     const short = String(inv.uuid || key).replace(/-/g, "").slice(0, 8);
     const filename = `cfdi-${folio}-${short}.${ext}`;
     res.setHeader("Content-Type", contentType);
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${filename}"`
-    );
+    res.setHeader("Content-Disposition", dispositionHeader(filename, inline));
     res.send(buffer);
   } catch (e) {
     const status =
