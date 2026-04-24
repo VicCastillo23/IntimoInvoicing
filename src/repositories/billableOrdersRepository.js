@@ -58,14 +58,14 @@ export async function listBillableOrdersFromDb({
     )`);
   }
 
-  params.push(invoicedArr);
-  const invoicedIdx = params.length;
-  if (status === "pending_invoice") {
-    parts.push(
-      `AND NOT (po.id = ANY($${invoicedIdx}::bigint[]))`
-    );
-  } else if (status === "invoiced") {
-    parts.push(`AND po.id = ANY($${invoicedIdx}::bigint[])`);
+  if (status === "pending_invoice" || status === "invoiced") {
+    params.push(invoicedArr);
+    const invoicedIdx = params.length;
+    if (status === "pending_invoice") {
+      parts.push(`AND NOT (po.id = ANY($${invoicedIdx}::bigint[]))`);
+    } else {
+      parts.push(`AND po.id = ANY($${invoicedIdx}::bigint[])`);
+    }
   }
 
   const limit = Math.min(
