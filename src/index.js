@@ -140,7 +140,19 @@ async function main() {
   await initInvoiceRepository();
 
   if (process.env.DATABASE_URL?.trim()) {
-    await bootstrapAuthUsersIfEmpty();
+    try {
+      await bootstrapAuthUsersIfEmpty();
+    } catch (e) {
+      const code = e && typeof e === "object" ? e.code : undefined;
+      if (code === "42P01") {
+        console.error(
+          "[intimo-invoicing] No existe auth.app_users. Aplica la migración en PostgreSQL, por ejemplo:\n" +
+            "  psql \"$DATABASE_URL\" -f deploy/postgres/13_auth_app_users.sql\n" +
+            "(ruta del archivo en el repo IntimoAccounting.)"
+        );
+      }
+      throw e;
+    }
   }
 
   app.listen(port, "0.0.0.0", () => {
