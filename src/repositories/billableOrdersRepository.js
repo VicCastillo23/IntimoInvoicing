@@ -19,11 +19,23 @@ function normalizePublicInvoiceToken(raw) {
 function publicInvoiceClientUrlFromDbToken(dbToken) {
   const t = normalizePublicInvoiceToken(dbToken);
   if (!t) return "";
+  const path = `cliente.html?t=${encodeURIComponent(t)}`;
   const base = String(process.env.PUBLIC_BASE_URL || "")
     .trim()
     .replace(/\/$/, "");
-  if (!base) return "";
-  return `${base}/cliente.html?t=${encodeURIComponent(t)}`;
+  // Si PUBLIC_BASE_URL apunta a localhost, un clic desde el navegador del staff
+  // abriría la máquina del usuario, no el servidor. Ruta relativa = mismo host que la SPA.
+  if (!base) return `/${path}`;
+  try {
+    const u = new URL(base);
+    const h = (u.hostname || "").toLowerCase();
+    if (h === "localhost" || h === "127.0.0.1" || h === "::1") {
+      return `/${path}`;
+    }
+  } catch {
+    return `/${path}`;
+  }
+  return `${base}/${path}`;
 }
 
 export function usesBillableOrdersDatabase() {
