@@ -93,10 +93,35 @@ export function canStampWithFacturama() {
 /**
  * En producción (p. ej. EC2 / AWS): `1` para no timbrar en modo simulación.
  * Si falta Facturama, POST /api/invoices/request responde 503.
+ * También se activa automáticamente si NODE_ENV=production o PUBLIC_BASE_URL es café íntimo.
  */
 export function mustStampWithFacturama() {
   const v = String(process.env.INTIMO_REQUIRE_FACTURAMA_STAMP || "").trim();
-  return v === "1" || /^true$/i.test(v) || /^yes$/i.test(v);
+  if (v === "1" || /^true$/i.test(v) || /^yes$/i.test(v)) return true;
+  if (v === "0" || /^false$/i.test(v) || /^no$/i.test(v)) return false;
+  return isProductionLikeHost();
+}
+
+/** Host/entorno que no debe aceptar mock ni sandbox SAT de prueba. */
+export function isProductionLikeHost() {
+  if (String(process.env.NODE_ENV || "").toLowerCase() === "production") return true;
+  const base = String(process.env.PUBLIC_BASE_URL || "").toLowerCase();
+  return /cafeintimo\.mx|amazonaws\.com|ec2/i.test(base);
+}
+
+export function isSandboxFacturamaUrl() {
+  const url = String(process.env.FACTURAMA_API_URL || "").toLowerCase();
+  return !url || /sandbox/i.test(url);
+}
+
+export function isTestSatEmisorRfc() {
+  return String(process.env.FACTURAMA_EMISOR_RFC || "").trim().toUpperCase() === "EKU9003173C9";
+}
+
+/** Permite sandbox/test RFC en prod solo con override explícito (nunca en operación real). */
+export function allowSandboxStampInProd() {
+  const v = String(process.env.INTIMO_ALLOW_SANDBOX_STAMP || "").trim();
+  return v === "1" || /^true$/i.test(v);
 }
 
 /**

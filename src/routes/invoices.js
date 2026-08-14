@@ -1,8 +1,12 @@
 import { Router } from "express";
 import {
+  allowSandboxStampInProd,
   canStampWithFacturama,
   isFacturamaAuthConfigured,
+  isProductionLikeHost,
+  isSandboxFacturamaUrl,
   isSmtpConfigured,
+  isTestSatEmisorRfc,
   mustStampWithFacturama,
 } from "../config.js";
 import { upsertClient } from "../repositories/clientRepository.js";
@@ -263,7 +267,33 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
       ok: false,
       error: "facturama_required",
       message:
-        "Timbrado simulación desactivado (INTIMO_REQUIRE_FACTURAMA_STAMP=1). Configura FACTURAMA_USER, FACTURAMA_PASSWORD, FACTURAMA_EMISOR_RFC y lugar de expedición válido.",
+        "Timbrado simulación desactivado. Configura FACTURAMA_USER, FACTURAMA_PASSWORD, FACTURAMA_EMISOR_RFC y lugar de expedición válido (o INTIMO_REQUIRE_FACTURAMA_STAMP=0 solo en desarrollo).",
+    });
+  }
+
+  if (
+    canStampWithFacturama() &&
+    isProductionLikeHost() &&
+    !allowSandboxStampInProd() &&
+    (isSandboxFacturamaUrl() || isTestSatEmisorRfc())
+  ) {
+    return res.status(503).json({
+      ok: false,
+      error: "facturama_sandbox_blocked",
+      message:
+        "Entorno de producción no puede timbrar con sandbox Facturama ni RFC de prueba SAT (EKU9003173C9). Configura FACTURAMA_API_URL de producción y el RFC real del negocio.",
+    });
+  }
+
+  const allowStampWithoutSmtp =
+    String(process.env.INTIMO_ALLOW_STAMP_WITHOUT_SMTP || "").trim() === "1" ||
+    /^true$/i.test(String(process.env.INTIMO_ALLOW_STAMP_WITHOUT_SMTP || "").trim());
+  if (isProductionLikeHost() && !isSmtpConfigured() && !allowStampWithoutSmtp) {
+    return res.status(503).json({
+      ok: false,
+      error: "smtp_required_before_stamp",
+      message:
+        "Entorno de producción no puede timbrar sin SMTP configurado (el cliente no recibiría la factura). Configura SMTP_HOST y SMTP_FROM, o define INTIMO_ALLOW_STAMP_WITHOUT_SMTP=1 solo si aceptas timbrar sin envío de correo.",
     });
   }
 
@@ -334,10 +364,21 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
     skipped: true,
     reason: /** @type {string | null} */ (null),
     error: /** @type {string | null} */ (null),
+    required: false,
+    warning: /** @type {string | null} */ (null),
   };
 
   const emailTo = String(receiver.email || "").trim();
   if (stampSource === "facturama" && facturamaRaw?.Id) {
+    if (!isSmtpConfigured()) {
+      emailDelivery.required = true;
+      emailDelivery.warning =
+        "Factura timbrada correctamente, pero el envío por correo no está configurado (SMTP). Configura SMTP_HOST y SMTP_FROM en el servidor.";
+      console.error(
+        "[invoicing] CFDI TIMBRADO PERO SMTP NO CONFIGURADO — el cliente no recibirá el correo. " +
+          "Configura SMTP_HOST / SMTP_FROM (y SMTP_USER / SMTP_PASS si es Gmail)."
+      );
+    }
     if (!emailTo) {
       emailDelivery.reason = "no_recipient_email";
     } else if (!isSmtpConfigured()) {
@@ -436,6 +477,7 @@ invoicesRouter.post("/invoices/request", async (req, res) => {
     reference,
     message,
     persisted,
+    warning: emailDelivery.warning || undefined,
     email: emailDelivery,
     storedArtifacts,
     downloadUrls,

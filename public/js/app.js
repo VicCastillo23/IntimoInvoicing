@@ -331,7 +331,10 @@ async function submitInvoice(ev) {
         emailNote = " No se envió correo (sin correo del receptor).";
       } else if (em.reason === "smtp_not_configured") {
         emailNote =
-          " No se envió correo: configura SMTP en el servidor (SMTP_HOST, SMTP_FROM).";
+          " ⚠ " +
+          (data.warning ||
+            em.warning ||
+            "No se envió correo: configura SMTP en el servidor (SMTP_HOST, SMTP_FROM).");
       }
     }
     showInvoiceAlert(
